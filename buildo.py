@@ -49,31 +49,28 @@ def simple_compile(compiler, src, obj, codegen, includedirs, libdirs, libs):
 
 def do_task(g, compiler, finale, item):
 
-    if item.startswith("tsd::"):
-        raise RuntimeError("Huh?")
-
     # If the item was put into the graph with the directory timestamp function,
     # it's a directory.
-    if g[item] == ts_directory:
+    item_type = g[item]
+    if item_type == "directory":
         print(f"Making directory {item}")
         os.makedirs(item)
-        return
-
-    # If it ends with .o, find the .c file in its predecessors and compile it
-    if item.endswith(".o"):
+    elif item_type == "object_file":
+        # If the item is an object file, find the .c file in its predecessors and compile it
         # Find the c file
         cf = filter(lambda x: x.endswith(".c"), g.get_direct_predecessors(item))
         x = next(cf)
 
         simple_compile(compiler, x, item, ["-O2"], ["inc"], [], []) 
-        return
-
-    # Otherwise its the final output. Find all the object files that go into it
-    # and compile it.
-    of = filter(lambda x: x.endswith(".o"), g.get_direct_predecessors(item))
-    final_cmd = [compiler] + list(of) + ["-o", finale]
-    print(final_cmd)
-    subprocess.check_output(final_cmd)
+    elif item_type == "main_output":
+        # Otherwise its the final output. Find all the object files that go
+        # into it and compile it.
+        of = filter(lambda x: x.endswith(".o"), g.get_direct_predecessors(item))
+        final_cmd = [compiler] + list(of) + ["-o", finale]
+        print(final_cmd)
+        subprocess.check_output(final_cmd)
+    else:
+        print(f"Unexpected item type for {item}")
 
 
 def tw(w, g, tsd, finale):
@@ -153,13 +150,13 @@ def do_main():
             return
     # Create the graph, add the output directory(ies)
     g = Graph()
-    g.add_vertex("out", ts_directory)
+    g.add_vertex("out", "directory")
 
     # Add the final binary name
     finale = os.path.join("out", "collect")
-    g.add_vertex(finale, ts_file)
+    g.add_vertex(finale, "main_output")
 
-    g.add_vertex(tsd.name("cc"), lambda x: tsd.time(x))
+    g.add_vertex(tsd.name("cc"), "tsd_entry")
 
     g.add_edge(finale, tsd.name("cc"))
 
@@ -168,7 +165,7 @@ def do_main():
     hfiles = glob.glob("**/*.h")
     for f in hfiles:
         # Add all the headers to the graph
-        g.add_vertex(f, ts_file)
+        g.add_vertex(f, "file")
 
     mkdeps = []
     # Run makedeps on each of the source files with the inc dir
@@ -177,13 +174,13 @@ def do_main():
 
     for f, o, deps in mkdeps:
         # Add all the c source files to the graph
-        g.add_vertex(f, ts_file)
+        g.add_vertex(f, "file")
         # Run makedeps on each of the source files with the inc dir
         #o, deps = cc.makedeps(f, "inc")
 
         # Add the object file to the graph
         ofile = os.path.join("out", o)
-        g.add_vertex(ofile, ts_file)
+        g.add_vertex(ofile, "object_file")
 
         # Add edges from `out/` to the object file
         g.add_edge(ofile, "out")
@@ -194,8 +191,17 @@ def do_main():
         # object file to final output
         g.add_edge(finale, ofile)
 
+    ts_tsd_entry = lambda x : tsd.time(x)
+    func_dict = {
+        "file" : ts_file,
+        "directory" : ts_directory,
+        "main_output" : ts_file,
+        "object_file" : ts_file,
+        "tsd_entry" :  ts_tsd_entry,
+    }
+
     # Create a work queue with the end goal of the finale file
-    w = WorkQueue(g, finale)
+    w = WorkQueue(g, finale, func_dict)
 
     threads = []
     nthreads = ncpus
