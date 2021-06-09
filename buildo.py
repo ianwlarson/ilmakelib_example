@@ -12,7 +12,7 @@ import threading
 
 from concurrent.futures import ThreadPoolExecutor
 
-from ilmakelib import Graph, makedeps, WorkQueue, TimestampDict
+from ilmklib import Graph, makedeps, WorkQueue, TimestampDict
 
 def ts_directory(dirname):
     if os.path.exists(dirname):
