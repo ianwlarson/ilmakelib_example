@@ -1,8 +1,11 @@
 
-.PHONY: all clean
+.PHONY: all clean print
 
 all:
-	./buildo.py -m
+	@python3 buildo.py -m
 
 clean:
-	./buildo.py -t clean
+	@python3 buildo.py -t clean
+
+print:
+	@python3 buildo.py -m -t print

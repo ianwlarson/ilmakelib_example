@@ -61,7 +61,7 @@ def do_task(g, compiler, finale, item):
         cf = filter(lambda x: x.endswith(".c"), g.get_direct_predecessors(item))
         x = next(cf)
 
-        simple_compile(compiler, x, item, ["-O2"], ["inc"], [], []) 
+        simple_compile(compiler, x, item, ["-Ofast"], ["inc"], [], [])
     elif item_type == "main_output":
         # Otherwise its the final output. Find all the object files that go
         # into it and compile it.
@@ -77,33 +77,6 @@ def tw(w, g, tsd, finale):
 
     cc = tsd["cc"]
     while True:
-
-        """
-        with cond:
-            # If we've done some work, mark it as done
-            if item:
-                w.mark_done(item)
-
-            # If all work is done, wake up all threads and finish
-            if w.done():
-                cond.notify_all()
-                break
-
-            item = w.get_item()
-            if not item:
-                # If there are no items available, wait to be readied when
-                # there is an item available or the work queue is complete.
-                cond.wait_for(lambda:w.done() or w.ready_count() > 0)
-                if w.done():
-                    break
-                else:
-                    item = w.get_item()
-
-            assert item
-            # If we got an item, notify any other waiting threads if there
-            # are other items to be completed.
-            cond.notify(w.ready_count())
-        """
 
         item = w.get_item(True)
         if not item:
@@ -203,20 +176,25 @@ def do_main():
     # Create a work queue with the end goal of the finale file
     w = WorkQueue(g, finale, func_dict)
 
+    if "print" in targets:
+        for item in w.get_updated():
+            print(item)
+        sys.exit(0)
+
     threads = []
     nthreads = ncpus
-    print(f"running with {ncpus} threads")
 
-    # Create N threads
+    # Create and start some threads
     for i in range(nthreads):
         t = threading.Thread(target=tw, args=(w, g, tsd, finale))
         threads.append(t)
         t.start()
 
-    # Wait for the N threads to complete
+    # Wait for all the threads to complete
     for t in threads:
         t.join()
 
+    # If there was some error, exit with a nonzero code
     if w.error:
         sys.exit(1)
 
