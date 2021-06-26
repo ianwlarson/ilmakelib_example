@@ -78,18 +78,23 @@ def tw(w, g, tsd, finale):
     cc = tsd["cc"]
     while True:
 
-        item = w.get_item(True)
+        try:
+            item = w.get_item(True)
+        except Exception as e:
+            item = None
+            print(e)
+            w.mark_error()
+
         if not item:
             break
 
         try:
             do_task(g, cc, finale, item)
+            w.mark_done(item)
         except Exception as e:
             print(e)
             w.mark_error()
             return
-
-        w.mark_done(item)
 
 def do_main():
 
@@ -174,7 +179,8 @@ def do_main():
     }
 
     # Create a work queue with the end goal of the finale file
-    w = WorkQueue(g, finale, func_dict)
+    w = WorkQueue(g, func_dict)
+    w.activate(finale)
 
     if "print" in targets:
         for item in w.get_updated():
